@@ -10,11 +10,15 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import os
 import openai
+import json
+from langchain_core.output_parsers import JsonOutputParser
+import re
+
 
 # Hardcoded Notion token, database ID, and Groq API key
-NOTION_TOKEN = ""
-DATABASE_ID = ""
-GROQ_API_KEY = ""
+NOTION_TOKEN = "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"
+DATABASE_ID = "129d3e63b59c80319b8cd5df54f36b9f"
+GROQ_API_KEY = "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"
 
 # Initialize Notion client
 notion = Client(auth=NOTION_TOKEN)
@@ -23,6 +27,10 @@ client = openai.OpenAI(
     base_url="https://api.groq.com/openai/v1",
     api_key=GROQ_API_KEY
 )
+
+
+
+
 
 # Function to check if stock data is already loaded for the current day by reading from Notion
 def is_data_loaded_today():
@@ -85,14 +93,55 @@ def populate_stock_data():
         except Exception as e:
             st.error(f"Failed to add stock {name} to Notion. Error: {e}")
 
-def classify_risk_profile(risk_tolerance, investment_horizon, income, experience_level, market_reaction):
+
+
+
+def classify_risk_profile(investment_performance, age_group, dependants, investment_percentage, income_sources, investment_loss_reaction, portfolio_protection, market_fluctuation, vacation_job_loss, unexpected_investment):
     # Improved logic to classify user into a risk profile
-    if risk_tolerance == "Conservative" or investment_horizon == "Short-term (1-3 years)" or income < 50000 or experience_level == "Beginner" or market_reaction == "Anxious":
-        return "Conservative"
-    elif risk_tolerance == "Moderate" or investment_horizon == "Medium-term (3-7 years)" or (50000 <= income < 200000) or experience_level == "Intermediate" or market_reaction == "Neutral":
-        return "Moderate"
-    else:
-        return "Aggressive"
+    # if risk_tolerance == "Conservative" or investment_horizon == "Short-term (1-3 years)" or income < 50000 or experience_level == "Beginner" or market_reaction == "Anxious":
+    #     return "Conservative"
+    # elif risk_tolerance == "Moderate" or investment_horizon == "Medium-term (3-7 years)" or (50000 <= income < 200000) or experience_level == "Intermediate" or market_reaction == "Neutral":
+    #     return "Moderate"
+    # else:
+    #     return "Aggressive"
+    prompt = f"""You are a financial expert. Based on the answers to a questionaire, you are supposed to classify the investor into a category of 'Conservative', 'Aggressive', or 'Moderate'.
+    Your response should be in proper json format with two keys. The first key should 'profile' with values as a single word: Conservative, Moderate or Aggressive.
+    The second key should be 'explanation' containing the reasoning for classifying the investor into the profile.
+    Here are the results of the questionaire:
+    Which of these statements best describes your attitudes about the next three years' performance of your investment?
+    {investment_performance}
+    What is your age group
+    {age_group}
+    How many dependants do you have (including spouse, children, dependent parents)?
+    {dependants}
+    What percentage of your monthly income can you invest?
+    {investment_percentage}
+    How many sources of income do you have?
+    {income_sources}
+    If your investment makes a 10% loss next year, what will you do?
+    {investment_loss_reaction}
+    Protecting my portfolio is more important to me than high returns.
+    {portfolio_protection}
+    When the market goes down, my preference would be to sell some riskier assets and put the money in safer assets.
+    {market_fluctuation}
+    You have just finished saving for a 'once-in-a-lifetime' vacation. Three weeks before you plan to leave, you lose your job. You would:
+    {vacation_job_loss}
+    If you unexpectedly received Rs. 10,00,000 to invest, what would you do?
+    {unexpected_investment}
+    """
+    try:
+        completion = client.chat.completions.create(
+            model="llama-3.1-70b-versatile",
+            messages=[
+                {"role": "system", "content": "You are a helpful financial advisor."},
+                {"role": "user", "content": prompt}
+            ]
+        )
+        return completion.choices[0].message.content.strip()
+    except Exception as e:
+        st.error(f"Error generating investment recommendations: {e}")
+        return ""
+
 
 def fetch_filtered_stocks(risk_profile):
     # Retrieve stock data from Notion database
@@ -222,21 +271,79 @@ def main():
     
     if st.session_state.start:
         # User input for risk profile
-        st.sidebar.header("Tell us about yourself")
-        risk_tolerance = st.sidebar.selectbox("What is your risk tolerance?", ["Conservative", "Moderate", "Aggressive"])
-        investment_horizon = st.sidebar.selectbox("What is your investment horizon?", ["Short-term (1-3 years)", "Medium-term (3-7 years)", "Long-term (7+ years)"])
-        income = st.sidebar.number_input("What is your annual income (in INR)?", min_value=0, step=50000)
-        experience_level = st.sidebar.selectbox("What is your investment experience level?", ["Beginner", "Intermediate", "Expert"])
-        market_reaction = st.sidebar.selectbox("How do you react to market volatility?", ["Anxious", "Neutral", "Excited"])
+        # st.sidebar.header("Tell us about yourself")
+        # age_group = st.sidebar.selectbox("What is your age group?", ["20 to 35", "36 to 50", "Above 50"])
+        # dependants = st.sidebar.selectbox("How many dependants do you have (including spouse, children, dependent parents)?", ["0", "Medium-term (3-7 years)", "Long-term (7+ years)"])
+        # income = st.sidebar.number_input("What is your annual income (in INR)?", min_value=0, step=50000)
+        # experience_level = st.sidebar.selectbox("What is your investment experience level?", ["Beginner", "Intermediate", "Expert"])
+        # market_reaction = st.sidebar.selectbox("How do you react to market volatility?", ["Anxious", "Neutral", "Excited"])
+     
         
+
+        age_group = st.sidebar.selectbox(
+            "What is your age group?",
+            ["Under 18", "18-24", "25-34", "35-44", "45-54", "55-64", "65 and above"]
+        )
+
+        dependants = st.sidebar.selectbox(
+            "How many dependants do you have (including spouse, children, dependent parents)?",
+            ["None", "1", "2", "3", "4 or more"]
+        )
+
+        investment_percentage = st.sidebar.selectbox(
+            "What percentage of your monthly income can you invest?",
+            ["0-20%", "20-40%","40% or more"]
+        )
+
+        income_sources = st.sidebar.selectbox(
+            "How many sources of income do you have?",
+            ["1", "2", "3", "4 or more"]
+        )
+
+        
+
+        investment_performance = st.sidebar.selectbox(
+            "Which of these statements best describes your attitudes about the next three years' performance of your investment?",
+            ["Expect consistent growth", "Expect some fluctuations", "Expect significant fluctuations", "Unsure"]
+        )
+
+        portfolio_protection = st.sidebar.selectbox(
+            "Protecting my portfolio is more important to me than high returns.",
+            ["Strongly Disagree", "Disagree", "Neutral", "Agree", "Strongly Agree"]
+        )
+
+        investment_loss_reaction = st.sidebar.selectbox(
+            "If your investment makes a 10% loss next year, what will you do?",
+            ["Sell some assets", "Hold on", "Buy more", "Seek advice"]
+        )
+
+        market_fluctuation = st.sidebar.selectbox(
+            "When the market goes down, my preference would be to sell some riskier assets and put the money in safer assets.",
+            ["Strongly Disagree", "Disagree", "Neutral", "Agree", "Strongly Agree"]
+        )
+
+
+        vacation_job_loss = st.sidebar.selectbox(
+            "You have just finished saving for a 'once-in-a-lifetime' vacation. Three weeks before you plan to leave, you lose your job. You would:",
+            ["Go anyway", "Postpone the trip", "Cancel the trip", "Look for a new job immediately"]
+        )
+
+        unexpected_investment = st.sidebar.selectbox(
+            "If you unexpectedly received Rs. 10,00,000 to invest, what would you do?",
+            ["Invest in stocks", "Invest in bonds", "Save for future needs", "Consult a financial advisor"]
+        )
+
+    
         if st.sidebar.button("Submit"):
             # Classify risk profile
-            risk_profile = classify_risk_profile(risk_tolerance, investment_horizon, income, experience_level, market_reaction)
-            st.write(f"\n### Your Risk Profile: {risk_profile}")
+            result = classify_risk_profile(investment_performance, age_group, dependants, investment_percentage, income_sources, investment_loss_reaction, portfolio_protection, market_fluctuation, vacation_job_loss, unexpected_investment)
+            result = re.sub(r'^```json\n|```$', '', result, flags=re.MULTILINE)
+            result = result.strip()
+            risk_profile = json.loads(result)['profile']
+            
             
             # Fetch filtered stocks based on risk profile
             filtered_stocks = fetch_filtered_stocks(risk_profile)
-            
             # Generate investment recommendations
             recommendations = generate_investment_recommendations(risk_profile, filtered_stocks)
             st.write(f"\n### Personalized Investment Recommendations:\n{recommendations}")

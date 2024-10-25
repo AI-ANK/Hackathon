@@ -12,9 +12,9 @@ import os
 import openai
 
 # Hardcoded Notion token, database ID, and Groq API key
-NOTION_TOKEN = ""
-DATABASE_ID = ""
-GROQ_API_KEY = ""
+NOTION_TOKEN = "secret_xPEG0W969GIWsZuv1tBVy3NyJPISpqHFhBSmLzsIfYY"
+DATABASE_ID = "129d3e63b59c80319b8cd5df54f36b9f"
+GROQ_API_KEY = "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"
 
 # Initialize Notion client
 notion = Client(auth=NOTION_TOKEN)
@@ -118,10 +118,27 @@ def fetch_filtered_stocks(risk_profile):
 
 def generate_investment_recommendations(risk_profile, filtered_stocks):
     # Use Groq API to generate personalized investment recommendations
-    prompt = f"You are a financial advisor. Based on the user's risk profile ({risk_profile}) and the following stocks: {', '.join(filtered_stocks)}, provide a personalized investment recommendation. Explain why these stocks are suitable for the user's risk profile."
+    prompt = (
+        f"You are a financial advisor. Based on the user's risk profile ({risk_profile}) and the following stocks: {', '.join(filtered_stocks)}, "
+        "provide a personalized investment recommendation in the following markdown format:\n\n"
+        "### Investment Recommendation\n"
+        "- **Risk Profile**: {risk_profile}\n"
+        "- **Recommended Stocks**:\n"
+        "  - Ticker: {{ticker}}, Allocation: {{allocation_percentage}}%, Reason: {{reason}}\n\n"
+        "### Allocation\n"
+        "- Allocate stocks based on the risk profile with percentage allocation for each stock.\n"
+        "### Portfolio Metrics\n"
+        "| Stock | Beta | Dividend Yield | P/E Ratio | Market Cap | % Allocation |\n"
+        "|-------|------|----------------|-----------|------------|--------------|\n"
+        "{{table_rows}}\n\n"
+        "### Additional Considerations\n"
+        "- **Economic Outlook**: Consider current market conditions and how they may impact the recommended stocks.\n"
+        "- **Sector Diversification**: Ensure diversification across different sectors to reduce risk.\n"
+        "- **Income Generation**: Highlight potential for dividend income, if applicable, and how it contributes to overall returns.\n"
+    )
     try:
         completion = client.chat.completions.create(
-            model="llama-3.1-70b-versatile",
+            model="llama-3.2-90b-vision-preview",
             messages=[
                 {"role": "system", "content": "You are a helpful financial advisor."},
                 {"role": "user", "content": prompt}
@@ -133,45 +150,29 @@ def generate_investment_recommendations(risk_profile, filtered_stocks):
         return ""
 
 def plot_stock_performance(filtered_stocks):
-    # Plot historical performance of the filtered stocks
+    # Plot historical performance of the filtered stocks compared to the benchmark (Nifty50)
     if not filtered_stocks:
         st.warning("No stocks available to plot performance.")
         return
     
-    st.write("\n### Historical Performance of Recommended Stocks")
+    st.write("\n### Historical Performance of Recommended Stocks vs Nifty50")
     data = pd.DataFrame()
+    benchmark = yf.Ticker("^NSEI")
+    benchmark_history = benchmark.history(period="6mo")
+    
+    if not benchmark_history.empty:
+        data["Nifty50"] = (benchmark_history["Close"] / benchmark_history["Close"].iloc[0] - 1) * 100
+    
     for ticker in filtered_stocks:
         stock = yf.Ticker(ticker)
         history = stock.history(period="6mo")
         if not history.empty:
-            data[ticker] = history["Close"]
+            data[ticker] = (history["Close"] / history["Close"].iloc[0] - 1) * 100
     
     if not data.empty:
         st.line_chart(data)
     else:
         st.warning("No data available to plot.")
-
-def display_portfolio_metrics(filtered_stocks):
-    # Display relevant metrics for the recommended portfolio
-    st.write("\n### Portfolio Metrics")
-    if not filtered_stocks:
-        st.warning("No stocks available to display metrics.")
-        return
-    
-    metrics_data = []
-    for ticker in filtered_stocks:
-        stock = yf.Ticker(ticker)
-        info = stock.info
-        metrics_data.append({
-            "Stock": ticker,
-            "Beta": info.get("beta", "N/A"),
-            "Dividend Yield": info.get("dividendYield", "N/A"),
-            "P/E Ratio": info.get("trailingPE", "N/A"),
-            "Market Cap": info.get("marketCap", "N/A")
-        })
-    
-    metrics_df = pd.DataFrame(metrics_data)
-    st.dataframe(metrics_df)
 
 def main():
     # Welcome page setup
@@ -214,11 +215,7 @@ def main():
             st.write(f"\n### Personalized Investment Recommendations:\n{recommendations}")
             
             # Improved layout using columns
-            col1, col2 = st.columns(2)
-            with col1:
-                plot_stock_performance(filtered_stocks)
-            with col2:
-                display_portfolio_metrics(filtered_stocks)
+            plot_stock_performance(filtered_stocks)
 
 if __name__ == "__main__":
     main()

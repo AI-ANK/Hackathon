@@ -10,6 +10,10 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import os
 import openai
+import json
+from langchain_core.output_parsers import JsonOutputParser
+import re
+
 
 # Hardcoded Notion token, database ID, and Groq API key
 NOTION_TOKEN = "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"
@@ -23,6 +27,10 @@ client = openai.OpenAI(
     base_url="https://api.groq.com/openai/v1",
     api_key=GROQ_API_KEY
 )
+
+
+
+
 
 # Function to check if stock data is already loaded for the current day by reading from Notion
 def is_data_loaded_today():
@@ -81,7 +89,10 @@ def populate_stock_data():
         except Exception as e:
             st.error(f"Failed to add stock {name} to Notion. Error: {e}")
 
-def classify_risk_profile(investment_performance, age_group, dependants, investment_percentage, income_sources, investment_loss_reaction, portfolio_protection, market_fluctuation, risk_taker_description, vacation_job_loss, unexpected_investment, international_investing):
+
+
+
+def classify_risk_profile(investment_performance, age_group, dependants, investment_percentage, income_sources, investment_loss_reaction, portfolio_protection, market_fluctuation, vacation_job_loss, unexpected_investment):
     # Improved logic to classify user into a risk profile
     # if risk_tolerance == "Conservative" or investment_horizon == "Short-term (1-3 years)" or income < 50000 or experience_level == "Beginner" or market_reaction == "Anxious":
     #     return "Conservative"
@@ -90,7 +101,8 @@ def classify_risk_profile(investment_performance, age_group, dependants, investm
     # else:
     #     return "Aggressive"
     prompt = f"""You are a financial expert. Based on the answers to a questionaire, you are supposed to classify the investor into a category of 'Conservative', 'Aggressive', or 'Moderate'.
-    
+    Your response should be in proper json format with two keys. The first key should 'profile' with values as a single word: Conservative, Moderate or Aggressive.
+    The second key should be 'explanation' containing the reasoning for classifying the investor into the profile.
     Here are the results of the questionaire:
     Which of these statements best describes your attitudes about the next three years' performance of your investment?
     {investment_performance}
@@ -108,14 +120,10 @@ def classify_risk_profile(investment_performance, age_group, dependants, investm
     {portfolio_protection}
     When the market goes down, my preference would be to sell some riskier assets and put the money in safer assets.
     {market_fluctuation}
-    In general, how would your best friend describe you as a risk taker?
-    {risk_taker_description}
     You have just finished saving for a 'once-in-a-lifetime' vacation. Three weeks before you plan to leave, you lose your job. You would:
     {vacation_job_loss}
     If you unexpectedly received Rs. 10,00,000 to invest, what would you do?
     {unexpected_investment}
-    How do you view international investing, considering the additional risks?
-    {international_investing}
     """
     try:
         completion = client.chat.completions.create(
@@ -244,11 +252,6 @@ def main():
      
         
 
-        investment_performance = st.sidebar.selectbox(
-            "Which of these statements best describes your attitudes about the next three years' performance of your investment?",
-            ["Expect consistent growth", "Expect some fluctuations", "Expect significant fluctuations", "Unsure"]
-        )
-
         age_group = st.sidebar.selectbox(
             "What is your age group?",
             ["Under 18", "18-24", "25-34", "35-44", "45-54", "55-64", "65 and above"]
@@ -269,9 +272,11 @@ def main():
             ["1", "2", "3", "4 or more"]
         )
 
-        investment_loss_reaction = st.sidebar.selectbox(
-            "If your investment makes a 10% loss next year, what will you do?",
-            ["Sell some assets", "Hold on", "Buy more", "Seek advice"]
+        
+
+        investment_performance = st.sidebar.selectbox(
+            "Which of these statements best describes your attitudes about the next three years' performance of your investment?",
+            ["Expect consistent growth", "Expect some fluctuations", "Expect significant fluctuations", "Unsure"]
         )
 
         portfolio_protection = st.sidebar.selectbox(
@@ -279,15 +284,16 @@ def main():
             ["Strongly Disagree", "Disagree", "Neutral", "Agree", "Strongly Agree"]
         )
 
+        investment_loss_reaction = st.sidebar.selectbox(
+            "If your investment makes a 10% loss next year, what will you do?",
+            ["Sell some assets", "Hold on", "Buy more", "Seek advice"]
+        )
+
         market_fluctuation = st.sidebar.selectbox(
             "When the market goes down, my preference would be to sell some riskier assets and put the money in safer assets.",
             ["Strongly Disagree", "Disagree", "Neutral", "Agree", "Strongly Agree"]
         )
 
-        risk_taker_description = st.sidebar.selectbox(
-            "In general, how would your best friend describe you as a risk taker?",
-            ["Very Conservative", "Somewhat Conservative", "Neutral", "Somewhat Aggressive", "Very Aggressive"]
-        )
 
         vacation_job_loss = st.sidebar.selectbox(
             "You have just finished saving for a 'once-in-a-lifetime' vacation. Three weeks before you plan to leave, you lose your job. You would:",
@@ -299,18 +305,17 @@ def main():
             ["Invest in stocks", "Invest in bonds", "Save for future needs", "Consult a financial advisor"]
         )
 
-        international_investing = st.sidebar.selectbox(
-            "How do you view international investing, considering the additional risks?",
-            ["Very Favorably", "Favorably", "Neutral", "Unfavorably", "Very Unfavorably"]
-        )
+    
         if st.sidebar.button("Submit"):
             # Classify risk profile
-            risk_profile = classify_risk_profile(investment_performance, age_group, dependants, investment_percentage, income_sources, investment_loss_reaction, portfolio_protection, market_fluctuation, risk_taker_description, vacation_job_loss, unexpected_investment, international_investing)
-            st.write(f"\n### Your Risk Profile: {risk_profile}")
+            result = classify_risk_profile(investment_performance, age_group, dependants, investment_percentage, income_sources, investment_loss_reaction, portfolio_protection, market_fluctuation, vacation_job_loss, unexpected_investment)
+            result = re.sub(r'^```json\n|```$', '', result, flags=re.MULTILINE)
+            result = result.strip()
+            risk_profile = json.loads(result)['profile']
+            
             
             # Fetch filtered stocks based on risk profile
             filtered_stocks = fetch_filtered_stocks(risk_profile)
-            
             # Generate investment recommendations
             recommendations = generate_investment_recommendations(risk_profile, filtered_stocks)
             st.write(f"\n### Personalized Investment Recommendations:\n{recommendations}")

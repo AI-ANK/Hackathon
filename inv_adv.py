@@ -122,23 +122,22 @@ def generate_investment_recommendations(risk_profile, filtered_stocks):
         f"You are a financial advisor. Based on the user's risk profile ({risk_profile}) and the following stocks: {', '.join(filtered_stocks)}, "
         "provide a personalized investment recommendation in the following markdown format:\n\n"
         "### Investment Recommendation\n"
-        "- **Risk Profile**: {risk_profile}\n"
-        "- **Recommended Stocks**:\n"
-        "  - Ticker: {{ticker}}, Allocation: {{allocation_percentage}}%, Reason: {{reason}}\n\n"
-        "### Allocation\n"
-        "- Allocate stocks based on the risk profile with percentage allocation for each stock.\n"
+        "- **Risk Profile:** {risk_profile}\n"
+        "- **Stocks Considered:** {', '.join(filtered_stocks)}\n\n"
+        "### Recommended Portfolio\n"
+        "| Stock Ticker | Allocation (%) |\n"
+        "|--------------|----------------|\n"
+        "| ... | ... |\n\n"
         "### Portfolio Metrics\n"
-        "| Stock | Beta | Dividend Yield | P/E Ratio | Market Cap | % Allocation |\n"
-        "|-------|------|----------------|-----------|------------|--------------|\n"
-        "{{table_rows}}\n\n"
-        "### Additional Considerations\n"
-        "- **Economic Outlook**: Consider current market conditions and how they may impact the recommended stocks.\n"
-        "- **Sector Diversification**: Ensure diversification across different sectors to reduce risk.\n"
-        "- **Income Generation**: Highlight potential for dividend income, if applicable, and how it contributes to overall returns.\n"
+        "| Stock Ticker | Beta | Dividend Yield | P/E Ratio | Market Cap | % Allocation |\n"
+        "|--------------|------|----------------|-----------|------------|--------------|\n"
+        "| ... | ... | ... | ... | ... | ... |\n\n"
+        "### Additional Insights\n"
+        "- Provide additional insights on diversification, sectors, and other relevant information for the user."
     )
     try:
         completion = client.chat.completions.create(
-            model="llama-3.2-90b-vision-preview",
+            model="llama-3.1-70b-versatile",
             messages=[
                 {"role": "system", "content": "You are a helpful financial advisor."},
                 {"role": "user", "content": prompt}
@@ -149,25 +148,48 @@ def generate_investment_recommendations(risk_profile, filtered_stocks):
         st.error(f"Error generating investment recommendations: {e}")
         return ""
 
+# New function to extract structured data from recommendations
+def extract_allocation_data(recommendations):
+    # Use Groq API to extract tickers and their allocation percentage from recommendations
+    prompt = (
+        "Extract the stock tickers and their percentage allocation from the following investment recommendations:\n\n"
+        f"{recommendations}\n\n"
+        "Provide the output in JSON format with keys 'tickers' (list of stock tickers) and 'allocations' (list of corresponding percentage allocations)."
+    )
+    try:
+        completion = client.chat.completions.create(
+            model="llama-3.1-70b-versatile",
+            messages=[
+                {"role": "system", "content": "You are a helpful assistant that extracts structured data."},
+                {"role": "user", "content": prompt}
+            ]
+        )
+        return completion.choices[0].message.content.strip()
+    except Exception as e:
+        st.error(f"Error extracting allocation data: {e}")
+        return ""
+
 def plot_stock_performance(filtered_stocks):
-    # Plot historical performance of the filtered stocks compared to the benchmark (Nifty50)
+    # Plot historical performance of the filtered stocks compared to Nifty50
     if not filtered_stocks:
         st.warning("No stocks available to plot performance.")
         return
     
     st.write("\n### Historical Performance of Recommended Stocks vs Nifty50")
     data = pd.DataFrame()
-    benchmark = yf.Ticker("^NSEI")
-    benchmark_history = benchmark.history(period="6mo")
+    nifty50 = yf.Ticker('^NSEI').history(period="6mo")['Close']
     
-    if not benchmark_history.empty:
-        data["Nifty50"] = (benchmark_history["Close"] / benchmark_history["Close"].iloc[0] - 1) * 100
+    if nifty50.empty:
+        st.warning("No benchmark data available to plot.")
+        return
+    
+    data['Nifty50'] = (nifty50 / nifty50.iloc[0] - 1) * 100
     
     for ticker in filtered_stocks:
         stock = yf.Ticker(ticker)
-        history = stock.history(period="6mo")
+        history = stock.history(period="6mo")['Close']
         if not history.empty:
-            data[ticker] = (history["Close"] / history["Close"].iloc[0] - 1) * 100
+            data[ticker] = (history / history.iloc[0] - 1) * 100
     
     if not data.empty:
         st.line_chart(data)
@@ -214,7 +236,11 @@ def main():
             recommendations = generate_investment_recommendations(risk_profile, filtered_stocks)
             st.write(f"\n### Personalized Investment Recommendations:\n{recommendations}")
             
-            # Improved layout using columns
+            # Extract allocation data from recommendations
+            allocation_data = extract_allocation_data(recommendations)
+            st.write(f"\n### Extracted Allocation Data:\n{allocation_data}")
+            
+
             plot_stock_performance(filtered_stocks)
 
 if __name__ == "__main__":

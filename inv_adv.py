@@ -12,9 +12,9 @@ import os
 import openai
 
 # Hardcoded Notion token, database ID, and Groq API key
-NOTION_TOKEN = "secret_xPEG0W969GIWsZuv1tBVy3NyJPISpqHFhBSmLzsIfYY"
-DATABASE_ID = "129d3e63b59c80319b8cd5df54f36b9f"
-GROQ_API_KEY = "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"
+NOTION_TOKEN = ""
+DATABASE_ID = ""
+GROQ_API_KEY = ""
 
 # Initialize Notion client
 notion = Client(auth=NOTION_TOKEN)
@@ -40,9 +40,13 @@ def is_data_loaded_today():
         return False
 
 def populate_stock_data():
-    # List of stock tickers (example: Nifty50, mid-cap, small-cap)
-    stock_tickers = ['RELIANCE.NS', 'TCS.NS', 'INFY.NS', 'HDFCBANK.NS', 'ITC.NS',
-                     'BAJFINANCE.NS', 'AXISBANK.NS', 'KOTAKBANK.NS', 'SBIN.NS', 'MARUTI.NS']
+    # Read stock tickers from CSV file
+    try:
+        stock_tickers_df = pd.read_csv('stock_tickers.csv')
+        stock_tickers = stock_tickers_df['Ticker'].tolist()
+    except Exception as e:
+        st.error(f"Error reading stock tickers from CSV: {e}")
+        return
     
     # Fetch stock data from yfinance
     for ticker in stock_tickers:
@@ -122,22 +126,23 @@ def generate_investment_recommendations(risk_profile, filtered_stocks):
         f"You are a financial advisor. Based on the user's risk profile ({risk_profile}) and the following stocks: {', '.join(filtered_stocks)}, "
         "provide a personalized investment recommendation in the following markdown format:\n\n"
         "### Investment Recommendation\n"
-        "- **Risk Profile:** {risk_profile}\n"
-        "- **Stocks Considered:** {', '.join(filtered_stocks)}\n\n"
-        "### Recommended Portfolio\n"
-        "| Stock Ticker | Allocation (%) |\n"
-        "|--------------|----------------|\n"
-        "| ... | ... |\n\n"
+        "- **Risk Profile**: {risk_profile}\n"
+        "- **Recommended Stocks**:\n"
+        "  - Ticker: {{ticker}}, Allocation: {{allocation_percentage}}%, Reason: {{reason}}\n\n"
+        "### Allocation\n"
+        "- Allocate stocks based on the risk profile with percentage allocation for each stock.\n"
         "### Portfolio Metrics\n"
-        "| Stock Ticker | Beta | Dividend Yield | P/E Ratio | Market Cap | % Allocation |\n"
-        "|--------------|------|----------------|-----------|------------|--------------|\n"
-        "| ... | ... | ... | ... | ... | ... |\n\n"
-        "### Additional Insights\n"
-        "- Provide additional insights on diversification, sectors, and other relevant information for the user."
+        "| Stock | Beta | Dividend Yield | P/E Ratio | Market Cap | % Allocation |\n"
+        "|-------|------|----------------|-----------|------------|--------------|\n"
+        "{{table_rows}}\n\n"
+        "### Additional Considerations\n"
+        "- **Economic Outlook**: Consider current market conditions and how they may impact the recommended stocks.\n"
+        "- **Sector Diversification**: Ensure diversification across different sectors to reduce risk.\n"
+        "- **Income Generation**: Highlight potential for dividend income, if applicable, and how it contributes to overall returns.\n"
     )
     try:
         completion = client.chat.completions.create(
-            model="llama-3.1-70b-versatile",
+            model="llama-3.2-90b-vision-preview",
             messages=[
                 {"role": "system", "content": "You are a helpful financial advisor."},
                 {"role": "user", "content": prompt}
@@ -177,7 +182,7 @@ def plot_stock_performance(filtered_stocks):
     
     st.write("\n### Historical Performance of Recommended Stocks vs Nifty50")
     data = pd.DataFrame()
-    nifty50 = yf.Ticker('^NSEI').history(period="6mo")['Close']
+    nifty50 = yf.Ticker('^NSEI').history(period="6mo")["Close"]
     
     if nifty50.empty:
         st.warning("No benchmark data available to plot.")
@@ -187,7 +192,7 @@ def plot_stock_performance(filtered_stocks):
     
     for ticker in filtered_stocks:
         stock = yf.Ticker(ticker)
-        history = stock.history(period="6mo")['Close']
+        history = stock.history(period="6mo")["Close"]
         if not history.empty:
             data[ticker] = (history / history.iloc[0] - 1) * 100
     

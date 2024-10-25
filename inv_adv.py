@@ -5,20 +5,24 @@
 import streamlit as st
 import yfinance as yf
 from notion_client import Client
-from openai import OpenAI
 import datetime
 import pandas as pd
 import matplotlib.pyplot as plt
+import os
+import openai
 
-# Hardcoded Notion token, database ID, and OpenAI API key
+# Hardcoded Notion token, database ID, and Groq API key
 NOTION_TOKEN = ""
 DATABASE_ID = ""
-OPENAI_API_KEY = ""
+GROQ_API_KEY = ""
 
 # Initialize Notion client
 notion = Client(auth=NOTION_TOKEN)
-# Set OpenAI client
-client = OpenAI(api_key=OPENAI_API_KEY)
+# Set Groq client using OpenAI compatibility
+client = openai.OpenAI(
+    base_url="https://api.groq.com/openai/v1",
+    api_key=GROQ_API_KEY
+)
 
 # Function to check if stock data is already loaded for the current day by reading from Notion
 def is_data_loaded_today():
@@ -113,11 +117,11 @@ def fetch_filtered_stocks(risk_profile):
     return filtered_stocks
 
 def generate_investment_recommendations(risk_profile, filtered_stocks):
-    # Use OpenAI API to generate personalized investment recommendations
+    # Use Groq API to generate personalized investment recommendations
     prompt = f"You are a financial advisor. Based on the user's risk profile ({risk_profile}) and the following stocks: {', '.join(filtered_stocks)}, provide a personalized investment recommendation. Explain why these stocks are suitable for the user's risk profile."
     try:
         completion = client.chat.completions.create(
-            model="gpt-4o-mini",
+            model="llama-3.1-70b-versatile",
             messages=[
                 {"role": "system", "content": "You are a helpful financial advisor."},
                 {"role": "user", "content": prompt}

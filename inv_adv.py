@@ -410,14 +410,8 @@ def main():
                 """,
                     unsafe_allow_html=True,
                 )
-                st.markdown(
-                    f"""
-                <div style="border: 2px solid #ccc; padding: 20px; border-radius: 10px; box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);">
-                    <h3 >Personalized Investment Recommendations:</h3>
-                    <p>{recommendations}</p>
-                </div>
-                """,
-                    unsafe_allow_html=True,
+                st.write(
+                    f"\n### Personalized Investment Recommendations:\n{recommendations}"
                 )
 
                 # Extract allocation data from recommendations

@@ -10,11 +10,13 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import os
 import openai
+import json
+import re
 
 # Hardcoded Notion token, database ID, and Groq API key
-NOTION_TOKEN = ""
-DATABASE_ID = ""
-GROQ_API_KEY = ""
+NOTION_TOKEN = "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"
+DATABASE_ID = "129d3e63b59c80319b8cd5df54f36b9f"
+GROQ_API_KEY = "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"
 
 # Initialize Notion client
 notion = Client(auth=NOTION_TOKEN)
@@ -174,28 +176,40 @@ def extract_allocation_data(recommendations):
         st.error(f"Error extracting allocation data: {e}")
         return ""
 
-def plot_stock_performance(filtered_stocks):
+def plot_stock_performance(allocation_data):
+    weight_dataframe = pd.DataFrame({'Tickers': allocation_data['tickers'],
+                                     'Weights': allocation_data['allocations']})
+    filtered_stocks = weight_dataframe['Tickers'].tolist()
+    data = pd.DataFrame()
+    for ticker in filtered_stocks:
+        stock = yf.Ticker(ticker)
+        history = stock.history(period="6mo")
+        if not history.empty:
+            data[ticker] = history["Close"]
+    weight_dataframe.set_index('Tickers', inplace=True)
+    data = data.multiply(weight_dataframe['Weights'], axis=1)
+
     # Plot historical performance of the filtered stocks compared to Nifty50
     if not filtered_stocks:
         st.warning("No stocks available to plot performance.")
         return
-    
+
     st.write("\n### Historical Performance of Recommended Stocks vs Nifty50")
-    data = pd.DataFrame()
-    nifty50 = yf.Ticker('^NSEI').history(period="6mo")["Close"]
-    
+
+    nifty50 = yf.Ticker('^NSEI').history(period="6mo")['Close']
+
     if nifty50.empty:
         st.warning("No benchmark data available to plot.")
         return
-    
+
     data['Nifty50'] = (nifty50 / nifty50.iloc[0] - 1) * 100
-    
+
     for ticker in filtered_stocks:
         stock = yf.Ticker(ticker)
-        history = stock.history(period="6mo")["Close"]
+        history = stock.history(period="6mo")['Close']
         if not history.empty:
             data[ticker] = (history / history.iloc[0] - 1) * 100
-    
+
     if not data.empty:
         st.line_chart(data)
     else:
@@ -244,9 +258,12 @@ def main():
             # Extract allocation data from recommendations
             allocation_data = extract_allocation_data(recommendations)
             st.write(f"\n### Extracted Allocation Data:\n{allocation_data}")
-            
 
-            plot_stock_performance(filtered_stocks)
+            allocation_data = re.sub(r'^```json\n|```$', '', allocation_data, flags=re.MULTILINE)
+            allocation_data = allocation_data.strip()
+            
+            print(allocation_data)
+            plot_stock_performance(json.loads(allocation_data))
 
 if __name__ == "__main__":
     main()

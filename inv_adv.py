@@ -97,6 +97,7 @@ def populate_stock_data():
             st.error(f"Failed to add stock {name} to Notion. Error: {e}")
 
 
+
 def classify_risk_profile(investment_performance, age_group, dependants, investment_percentage, income_sources, investment_loss_reaction, portfolio_protection, market_fluctuation, vacation_job_loss, unexpected_investment):
     # Improved logic to classify user into a risk profile
     prompt = f"""You are a financial expert. Based on the answers to a questionaire, you are supposed to classify the investor into a category of 'Conservative', 'Aggressive', or 'Moderate'.
@@ -125,13 +126,14 @@ def classify_risk_profile(investment_performance, age_group, dependants, investm
     {unexpected_investment}
     """
     try:
-        completion = client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[
-                {"role": "system", "content": "You are a helpful financial advisor."},
-                {"role": "user", "content": prompt}
-            ]
-        )
+        with st.spinner('Classifying your risk profile...'):
+            completion = client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[
+                    {"role": "system", "content": "You are a helpful financial advisor."},
+                    {"role": "user", "content": prompt}
+                ]
+            )
         return completion.choices[0].message.content.strip()
     except Exception as e:
         st.error(f"Error generating investment recommendations: {e}")
@@ -185,13 +187,14 @@ def generate_investment_recommendations(risk_profile, filtered_stocks):
         "- **Income Generation**: Highlight potential for dividend income, if applicable, and how it contributes to overall returns.\n"
     )
     try:
-        completion = client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[
-                {"role": "system", "content": "You are a helpful financial advisor."},
-                {"role": "user", "content": prompt}
-            ]
-        )
+        with st.spinner('Generating investment recommendations...'):
+            completion = client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[
+                    {"role": "system", "content": "You are a helpful financial advisor."},
+                    {"role": "user", "content": prompt}
+                ]
+            )
         return completion.choices[0].message.content.strip()
     except Exception as e:
         st.error(f"Error generating investment recommendations: {e}")
@@ -200,14 +203,15 @@ def generate_investment_recommendations(risk_profile, filtered_stocks):
 # New function to extract structured data from recommendations
 def extract_allocation_data(recommendations):
     try:
-        completion = client.beta.chat.completions.parse(
-            model="gpt-4o-mini",
-            messages=[
-                {"role": "system", "content": "Extract the stock tickers and their percentage allocation."},
-                {"role": "user", "content": recommendations}
-            ],
-            response_format=AllocationData
-        )
+        with st.spinner('Extracting allocation data...'):
+            completion = client.beta.chat.completions.parse(
+                model="gpt-4o-mini",
+                messages=[
+                    {"role": "system", "content": "Extract the stock tickers and their percentage allocation."},
+                    {"role": "user", "content": recommendations}
+                ],
+                response_format=AllocationData
+            )
         return completion.choices[0].message.parsed
     except Exception as e:
         st.error(f"Error extracting allocation data: {e}")
@@ -262,8 +266,8 @@ def main():
     
     # Check if stock data has been loaded today
     if not is_data_loaded_today():
-        st.write("\nFetching stock data for today...")
-        populate_stock_data()
+        with st.spinner('Fetching stock data for today...'):
+            populate_stock_data()
         st.write("Stock data has been successfully fetched and stored in the Notion database!")
     
     # Navigation: Get Started Button
@@ -272,7 +276,8 @@ def main():
     
     if not st.session_state.start:
         if st.button("Get Started"):
-            st.session_state.start = True
+            with st.spinner('Setting up...'):
+                st.session_state.start = True
     
     if st.session_state.start:
         # User input for risk profile
@@ -327,23 +332,24 @@ def main():
         )
 
         if st.sidebar.button("Submit"):
-            # Classify risk profile
-            result = classify_risk_profile(investment_performance, age_group, dependants, investment_percentage, income_sources, investment_loss_reaction, portfolio_protection, market_fluctuation, vacation_job_loss, unexpected_investment)
-            result = re.sub(r'^```json\n|```$', '', result, flags=re.MULTILINE)
-            result = result.strip()
-            risk_profile = json.loads(result)['profile']
-            
-            # Fetch filtered stocks based on risk profile
-            filtered_stocks = fetch_filtered_stocks(risk_profile)
-            # Generate investment recommendations
-            recommendations = generate_investment_recommendations(risk_profile, filtered_stocks)
-            st.write(f"\n### Personalized Investment Recommendations:\n{recommendations}")
-            
-            # Extract allocation data from recommendations
-            allocation_data = extract_allocation_data(recommendations)
-            # st.write(f"\n### Extracted Allocation Data:\n{allocation_data}")
-            
-            plot_stock_performance(allocation_data)
+            with st.spinner('Processing your information...'):
+                # Classify risk profile
+                result = classify_risk_profile(investment_performance, age_group, dependants, investment_percentage, income_sources, investment_loss_reaction, portfolio_protection, market_fluctuation, vacation_job_loss, unexpected_investment)
+                result = re.sub(r'^```json\n|```$', '', result, flags=re.MULTILINE)
+                result = result.strip()
+                risk_profile = json.loads(result)['profile']
+                
+                # Fetch filtered stocks based on risk profile
+                filtered_stocks = fetch_filtered_stocks(risk_profile)
+                # Generate investment recommendations
+                recommendations = generate_investment_recommendations(risk_profile, filtered_stocks)
+                st.write(f"\n### Personalized Investment Recommendations:\n{recommendations}")
+                
+                # Extract allocation data from recommendations
+                allocation_data = extract_allocation_data(recommendations)
+                # st.write(f"\n### Extracted Allocation Data:\n{allocation_data}")
+                
+                plot_stock_performance(allocation_data)
 
 if __name__ == "__main__":
     main()

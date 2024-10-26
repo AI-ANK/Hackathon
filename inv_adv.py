@@ -11,14 +11,19 @@ import matplotlib.pyplot as plt
 import os
 from openai import OpenAI
 import json
-from langchain_core.output_parsers import JsonOutputParser
 import re
 from pydantic import BaseModel
+from dotenv import load_dotenv
 
-# Hardcoded Notion token, database ID, and Groq API key
-NOTION_TOKEN = ""
-DATABASE_ID = ""
-OPENAI_API_KEY = ""
+
+## Load environment variables
+load_dotenv()
+
+# Fetch tokens and keys from environment variables
+NOTION_TOKEN = os.getenv("NOTION_TOKEN")
+DATABASE_ID = os.getenv("DATABASE_ID")
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+
 
 # Initialize Notion client
 notion = Client(auth=NOTION_TOKEN)
